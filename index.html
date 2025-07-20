@@ -1,10 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-  <meta charset="UTF-8">
-  <title>Timelines</title>
-  <style>
-    html, body {
+  <head>
+    <meta charset="UTF-8">
+    <title>Timelines</title>
+    <style>
+      html, body {
       margin: 0;
       padding: 0;
       overflow: hidden;
@@ -16,40 +16,39 @@
       height: 100%;
       overflow: hidden;
       background-color: #f0f0f0;
-      cursor: grab;
-    }
-
-    #viewport:active {
-      cursor: grabbing;
-    }
-
-    #viewport *:not(#content) {
-      cursor: auto;
     }
 
     .box {
+      position: absolute;
+      max-width: 300px;
+
       padding: 10px;
+      text-align: center;
+      cursor: text;
+      user-select: text;
+
+      background-color: #f0f0f0;
 
       border: 2px solid #444;
       border-radius: 12px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
     }
-  </style>
-</head>
-<body>
-  <div id="viewport">
-    <div id="content">
+    </style>
+  </head>
+  <body>
+    <div id="viewport">
+      <div id="content">
+      </div>
     </div>
-  </div>
-
-  <script src="leader-line.min.js"></script>
-  <script>
-    const viewport = document.getElementById('viewport');
-    const content = document.getElementById('content');
-    let lineUpdates = [];
-  </script>
-  <script src="pan.js"></script>
-  <script src="gen.js"></script>
-</body>
+    <script src="jquery-3.7.1.min.js"></script>
+    <script src="leader-line.min.js"></script>
+    <script src="panzoom.min.js"></script>
+    <script>
+      const viewport = document.getElementById('viewport');
+      const content = document.getElementById('content');
+      const panzoom = Panzoom(content, { canvas: true, excludeClass: 'box' });
+      viewport.addEventListener('wheel', panzoom.zoomWithWheel);
+    </script>
+    <script src="gen.js"></script>
+  </body>
 </html>
-

@@ -1,181 +1,136 @@
-// ----------------------------------- Timestamps
-const timestamps = [
-  {
-    title: 'Prequel',
-    id: 'prequel',
-  },
-  {
-    title: 'SBK1',
-    id: 'sbk1',
-  },
-  {
-    title: 'Avid Adventures',
-    id: 'aa',
-  },
-];
-
-const timestampMap = Object.fromEntries(timestamps.map(
-  timestamp => [timestamp.id, timestamp]
-));
-
-// ----------------------------------- Events
-function makeEvent(timestampId, html, maxWidth=500) {
-  let div = document.createElement('div');
-  div.className = 'box';
-  div.style.position = 'absolute';
-  div.style.maxWidth = `${maxWidth}px`;
-  div.innerHTML = html;
-  let event = {
-    div,
-    timestampId,
-  };
-
-  let timestamp = timestampMap[timestampId];
-  if (!timestamp.events) timestamp.events = [];
-  timestamp.events.push(event);
-
-  return event;
-}
-
-// ----------------------------------- Timelines
 const timelines = [
-  {
-    name: 'Avid',
-    color: 'purple',
-    events: [],
-  },
-  {
-    name: 'Marm',
-    color: 'orange',
-    events: [],
-  },
-  {
-    name: 'Avid',
-    color: 'purple',
-    events: [],
-  }
-];
+  'avid', 'skyvid',
+  'marm',
+]
 
-timelines[0].events.push(
-  makeEvent('prequel', `
-  <a href="https://youtu.be/szGFe0vgsGI?t=92">100 days nightmare series</a>, where Avid first starts in a village he named "New Salem".
-  <a href="https://youtu.be/szGFe0vgsGI?t=74">He also named an iron golem Jeremy</a>, who later dies during a blood moon.
-  To protect this town from blood moons <a href="https://youtu.be/5dOLxIq2emM?t=945">Avid agrees to a deal with a powerful guy named Olm, The Old One.</a>
-  He defeats the "Demon of Darkness" and <a href="https://youtu.be/5dOLxIq2emM?t=1442">goes to Limbo</a>, where there is no faith of returning.
-  `),
-  makeEvent('sbk1', `
-  Limbo Avid gets split into the dusk black avid with sad white eyes and the other Avid (shown in <a href="https://youtu.be/mcfRVIzNq8c?t=306">a flashback from Marm saying "I've been in the void"</a>).
-  Colorful Avid agrees to a deal with Olm to get out of limbo.
-  `),
-  makeEvent('sbk1', `
-  <i>Looking for explanation of <a href="https://youtu.be/mcfRVIzNq8c?t=249">this</a> second, but looks like this is how Marmalade found out about the way Avid was sent to SBK1</i>
-  `),
-  makeEvent('sbk1', `
-  <a href="https://youtu.be/6D3ThbTSULM?t=1674">He falls into the void in the first EP and lights up limbo on fire (?)</a>.
-  He talks to Olm, gets transformed into a monkey and is sent back.
-  `)
-);
-
-timelines[1].events.push(
-  makeEvent('prequel', `
-  ...Void screaming... TODO
-  `),
-);
-
-const wafflehouse = makeEvent('sbk1', `
-<a href="https://youtu.be/sam-a4NCUbQ?t=1754">Monkey Avid and Marmalade figured out how to get dusk Avid out of limbo through Leon's wafflehouse</a>.
-He got transported into AA world and also got the enderman curse from Leon.
-`, false);
-
-timelines[0].events.push(wafflehouse);
-timelines[1].events.push(wafflehouse);
-
-timelines[2].events.push(
-  wafflehouse,
-  makeEvent('aa', `
-  In the AA world he slowly frees from the enderman curse & dusk discoloration somehow (running quests as a good guy?)
-  `),
-);
-
-const visit = makeEvent('aa', `
-Marmalade visits avid in AA with void magic (shown in I Built a MEGA Island on Marm's channel + in Avid's AA video), and by the end of SBK1 she transports them both to AA world, where Avid would hide to this day (prooven by his comment).
-`);
-
-timelines[1].events.push(visit);
-timelines[2].events.push(visit);
-
-// ----------------------------------- Generation
-function regenerateContent() {
+async function regenerateContent() {
   content.innerHTML = '';
-  lineUpdates = [];
 
-  // Add events
-  for (const timestamp of timestamps) {
-    timestamp.events = timestamp.events || [];
-    for (const event of timestamp.events) {
-      event.timelines = [];
-      content.appendChild(event.div);
+  let html = {};
+  await Promise.all(timelines.map(async id => html[id] = $.parseHTML(await $.get(`timelines/${id}.html`))));
+
+  // Create fields
+  let eventMap = {};
+  for (const timelineId of timelines) {
+    const timeline = html[timelineId];
+
+    timeline.meta = {};
+    for (const event of timeline) {
+      if (event.tagName != 'META') continue;
+      for (const attr of event.attributes) timeline.meta[attr.name] = attr.value;
+    }
+
+    for (const event of timeline) {
+      if (event.tagName != 'EVENT') continue;
+
+      if (event.id) {
+        event.id = `${timelineId}:${event.id}`;
+        eventMap[event.id] = event;
+      }
+
+      event.predecessors = [];
+      event.successors = [];
+
+      if (!event.getAttribute('link')) {
+        event.div = document.createElement('div');
+        event.div.id = event.id;
+        event.div.className = 'box';
+        event.div.innerHTML = event.innerHTML;
+        event.div.style.top = '0px';
+        event.div.style.left = '0px';
+        content.appendChild(event.div);
+      }
     }
   }
 
-  // Layout timelines
-  let x = 0;
-  for (const timeline of timelines) {
-    timeline.x = x;
-    for (const event of timeline.events) event.timelines.push(timeline);
-    x += 500;
+  // Replace links
+  for (const timelineId of timelines) {
+    const timeline = html[timelineId];
+    for (const idx in timeline) {
+      if (timeline[idx].tagName != 'EVENT') continue;
+      const link = timeline[idx].getAttribute('link');
+      if (link) timeline[idx] = eventMap[link];
+    }
   }
 
-  for (const timeline of timelines) {
-    let last = null, first = true;
-    for (const event of timeline.events) {
+  // Generate references
+  for (const timelineId of timelines) {
+    const timeline = html[timelineId];
+    let last = null;
+    for (const event of timeline) {
+      if (event.tagName != 'EVENT') continue;
+      if (event.getAttribute('prev')) last = eventMap[event.getAttribute('prev')];
+
       if (last) {
+        event.predecessors.push(last);
+        last.successors.push(event);
+
         const line = new LeaderLine(last.div, event.div, {
-          color: timeline.color,
+          color: timeline.meta.color,
           startSocket: 'bottom',
           endSocket: 'top',
         });
-        // if (!(last.timelines.length > 1 && event.timelines.length > 1)) {
-        if (last.timelines.length > 1 || first) line.startLabel = LeaderLine.pathLabel(timeline.name);
-        if (event.timelines.length > 1) line.endLabel = LeaderLine.pathLabel(timeline.name);
-        // }
-        lineUpdates.push(() => {
-          line.position()
-          line.size = 5 * transforms.scale;
-          line.startSocketGravity = line.endSocketGravity = 100 * transforms.scale;
+
+        // if (last.timelines.length > 1 || first) line.startLabel = LeaderLine.pathLabel(timeline.name);
+        // if (event.timelines.length > 1) line.endLabel = LeaderLine.pathLabel(timeline.name);
+
+        content.addEventListener('panzoomchange', (event) => {
+          const scale = event.detail.scale;
+          line.position();
+          line.size = 5 * scale;
+          line.startSocketGravity = line.endSocketGravity = 100 * scale;
         });
-        first = false;
       }
+
       last = event;
     }
   }
 
-  // Layout timestamps
-  let timestampY = 0;
-  for (const timestamp of timestamps) {
-    const LAYER_PADDING = 100;
-
-    let timelineHeights = {};
-    let height = 0;
-    for (const event of timestamp.events) {
-      let x = 0, y = 0;
-      for (const timeline of event.timelines) {
-        x += timeline.x;
-        y = Math.max(y, (timelineHeights[timeline.name] + LAYER_PADDING) || 0);
-      }
-
-      x /= event.timelines.length;
-      for (const timeline of event.timelines) timelineHeights[timeline.name] = y + event.div.offsetHeight;
-      height = Math.max(height, y + event.div.offsetHeight);
-
-      event.div.style.left = `${x - event.div.offsetWidth / 2}px`;
-      event.div.style.top = `${y + timestampY}px`;
+  // Topological sort
+  let order = [];
+  for (const timelineId of timelines) {
+    function visit(event) {
+      if (event.visited) return;
+      event.visited = true;
+      for (const predecessor of event.predecessors) visit(predecessor);
+      order.push(event);
     }
 
-    timestampY += height + LAYER_PADDING;
+    for (const event of html[timelineId]) {
+      if (event.tagName != 'EVENT') continue;
+      if (event.successors.length == 0) visit(event);
+    }
   }
 
-  for (const update of lineUpdates) update();
+  // Layout
+  let freeX = 0;
+  for (const event of order) {
+    // Position this event
+    if (event.predecessors.length > 0) {
+      event.div.style.left = `${parseInt(event.div.style.left) / event.predecessors.length}px`;
+    } else {
+      event.div.style.left = `${freeX}px`;
+      freeX += event.div.offsetWidth + 50;
+    }
+
+    // Compute starting offset
+    const PADDING = 50;
+    let x = parseInt(event.div.style.left) + event.div.offsetWidth / 2 - (event.successors.length - 1) * PADDING / 2;
+    for (const successor of event.successors) {
+      x -= successor.div.offsetWidth / 2;
+    }
+
+    // Contribute to successors
+    for (const successor of event.successors) {
+      const left = parseInt(successor.div.style.left) + x;
+      const top = Math.max(parseInt(successor.div.style.top), parseInt(event.div.style.top) + event.div.offsetHeight + 100);
+      successor.div.style.left = `${left}px`;
+      successor.div.style.top = `${top}px`;
+      x += successor.div.offsetWidth + PADDING;
+    }
+  }
+
+  panzoom.zoom(1);
 }
 
 regenerateContent();
