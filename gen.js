@@ -1,65 +1,84 @@
-const timelines = [
-  'avid', 'skyvid',
+let timelines = [
+  'avid', 'skyvid', 'avoid', 'aavid',
   'marm',
-]
+];
 
-async function regenerateContent() {
-  content.innerHTML = '';
+const eventMap = {};
 
-  let html = {};
-  await Promise.all(timelines.map(async id => html[id] = $.parseHTML(await $.get(`timelines/${id}.html`))));
+(async function load() {
+  const parser = new DOMParser();
 
-  // Create fields
-  let eventMap = {};
-  for (const timelineId of timelines) {
-    const timeline = html[timelineId];
+  timelines = await Promise.all(timelines.map(id =>
+    fetch(`timelines/${id}.html`)
+    .then(response => response.text())
+    .then(text => {
+      const doc = parser.parseFromString(text, 'text/html');
+      const timeline = Array.from(doc.body.children);
 
-    timeline.meta = {};
-    for (const event of timeline) {
-      if (event.tagName != 'META') continue;
-      for (const attr of event.attributes) timeline.meta[attr.name] = attr.value;
-    }
-
-    for (const event of timeline) {
-      if (event.tagName != 'EVENT') continue;
-
-      if (event.id) {
-        event.id = `${timelineId}:${event.id}`;
-        eventMap[event.id] = event;
+      timeline.id = id;
+      timeline.meta = {};
+      timeline.head = [];
+      for (const el of doc.head.children) {
+        if (el.tagName == 'META') {
+          for (const attr of el.attributes) timeline.meta[attr.name] = attr.value;
+        } else timeline.head.push(el);
       }
 
+      for (const event of timeline) {
+        if (event.id) {
+          event.id = `${id}:${event.id}`;
+          eventMap[event.id] = event;
+        }
+      }
+
+      return timeline;
+    })));
+
+  regenerateContent();
+  regenerateContent();
+  panzoom.zoom(2);
+})();
+
+let lines = [];
+function regenerateContent() {
+  for (const line of lines) {
+    document.body.appendChild(line.element);
+    line.remove();
+  }
+  lines = [];
+  content.innerHTML = '';
+
+  // Create events
+  for (const timeline of timelines) {
+    const container = document.createElement('div');
+    container.append(...timeline.head);
+    content.appendChild(container);
+
+    for (const event of timeline) {
       event.predecessors = [];
       event.successors = [];
+      event.visited = false;
 
       if (!event.getAttribute('link')) {
         event.div = document.createElement('div');
         event.div.id = event.id;
-        event.div.className = 'box';
+        event.div.className = `box ${event.className}`;
         event.div.innerHTML = event.innerHTML;
         event.div.style.top = '0px';
         event.div.style.left = '0px';
-        content.appendChild(event.div);
+        container.appendChild(event.div);
       }
     }
   }
 
-  // Replace links
-  for (const timelineId of timelines) {
-    const timeline = html[timelineId];
-    for (const idx in timeline) {
-      if (timeline[idx].tagName != 'EVENT') continue;
-      const link = timeline[idx].getAttribute('link');
-      if (link) timeline[idx] = eventMap[link];
-    }
-  }
-
   // Generate references
-  for (const timelineId of timelines) {
-    const timeline = html[timelineId];
+  for (const timeline of timelines) {
     let last = null;
-    for (const event of timeline) {
-      if (event.tagName != 'EVENT') continue;
+    for (let event of timeline) {
       if (event.getAttribute('prev')) last = eventMap[event.getAttribute('prev')];
+
+      const link = event.getAttribute('link');
+      if (link) event = eventMap[link];
 
       if (last) {
         event.predecessors.push(last);
@@ -69,17 +88,19 @@ async function regenerateContent() {
           color: timeline.meta.color,
           startSocket: 'bottom',
           endSocket: 'top',
+          dash: true,
+          dropShadow: true,
         });
 
-        // if (last.timelines.length > 1 || first) line.startLabel = LeaderLine.pathLabel(timeline.name);
-        // if (event.timelines.length > 1) line.endLabel = LeaderLine.pathLabel(timeline.name);
-
-        content.addEventListener('panzoomchange', (event) => {
-          const scale = event.detail.scale;
-          line.position();
-          line.size = 5 * scale;
-          line.startSocketGravity = line.endSocketGravity = 100 * scale;
+        line.middleLabel = LeaderLine.pathLabel(timeline.meta.name, {
+          outlineColor: 'rgba(30, 30, 30, 0.5)',
+          fontSize: 20,
+          line,
         });
+
+        line.element = document.body.children[document.body.children.length - 1];
+        content.appendChild(line.element);
+        lines.push(line);
       }
 
       last = event;
@@ -87,31 +108,34 @@ async function regenerateContent() {
   }
 
   // Topological sort
-  let order = [];
-  for (const timelineId of timelines) {
+  const order = [];
+  for (const timeline of timelines) {
     function visit(event) {
+      const link = event.getAttribute('link');
+      if (link) event = eventMap[link];
+
       if (event.visited) return;
       event.visited = true;
       for (const predecessor of event.predecessors) visit(predecessor);
       order.push(event);
     }
 
-    for (const event of html[timelineId]) {
-      if (event.tagName != 'EVENT') continue;
+    for (const event of timeline) {
       if (event.successors.length == 0) visit(event);
     }
   }
 
   // Layout
-  let freeX = 0;
+  let freeX = window.innerWidth / 2 - 150;
   for (const event of order) {
     // Position this event
-    if (event.predecessors.length > 0) {
+    if (event.predecessors.length > 0 && !event.hasAttribute('time-reset')) {
       event.div.style.left = `${parseInt(event.div.style.left) / event.predecessors.length}px`;
     } else {
+      event.div.style.top = '0px';
       event.div.style.left = `${freeX}px`;
-      freeX += event.div.offsetWidth + 50;
     }
+    freeX = Math.max(freeX, parseInt(event.div.style.left) + event.div.offsetWidth + 50);
 
     // Compute starting offset
     const PADDING = 50;
@@ -130,7 +154,5 @@ async function regenerateContent() {
     }
   }
 
-  panzoom.zoom(1);
+  for (const line of lines) line.position();
 }
-
-regenerateContent();
