@@ -126,7 +126,7 @@ function regenerateContent() {
   }
 
   // Layout
-  let freeX = window.innerWidth / 2 - 150;
+  let freeX = window.innerWidth / 4 - 150; // Divide by 4 because default scale is 2
   for (const event of order) {
     // Position this event
     if (event.predecessors.length > 0 && !event.hasAttribute('time-reset')) {
@@ -134,6 +134,7 @@ function regenerateContent() {
     } else {
       event.div.style.top = '0px';
       event.div.style.left = `${freeX}px`;
+      console.log(freeX);
     }
     freeX = Math.max(freeX, parseInt(event.div.style.left) + event.div.offsetWidth + 50);
 
