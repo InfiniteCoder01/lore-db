@@ -6,6 +6,8 @@ let timelines = [
 const eventMap = {};
 
 (async function load() {
+  LeaderLine.positionByWindowResize = false;
+
   const parser = new DOMParser();
 
   timelines = await Promise.all(timelines.map(id =>
@@ -35,8 +37,9 @@ const eventMap = {};
     })));
 
   regenerateContent();
-  regenerateContent();
-  panzoom.zoom(2);
+  const zoom = 1.5;
+  panzoom.zoom(zoom);
+  panzoom.pan(window.innerWidth / zoom / 2, 0);
 })();
 
 let lines = [];
@@ -99,7 +102,6 @@ function regenerateContent() {
         });
 
         line.element = document.body.children[document.body.children.length - 1];
-        content.appendChild(line.element);
         lines.push(line);
       }
 
@@ -107,53 +109,65 @@ function regenerateContent() {
     }
   }
 
-  // Topological sort
+  // Topological sort of position dependence
   const order = [];
   for (const timeline of timelines) {
     function visit(event) {
-      const link = event.getAttribute('link');
-      if (link) event = eventMap[link];
-
+      if (event.hasAttribute('link')) event = eventMap[event.getAttribute('link')];
       if (event.visited) return;
       event.visited = true;
+
+      const positionDefined = event.hasAttribute('x');
+      if (positionDefined) order.push(event);
       for (const predecessor of event.predecessors) visit(predecessor);
-      order.push(event);
+      if (!positionDefined) order.push(event);
     }
 
     for (const event of timeline) {
+      if (event.hasAttribute('link')) continue;
       if (event.successors.length == 0) visit(event);
     }
   }
 
   // Layout
-  let freeX = window.innerWidth / 4 - 150; // Divide by 4 because default scale is 2
+  let freeX = 0;
   for (const event of order) {
     // Position this event
-    if (event.predecessors.length > 0 && !event.hasAttribute('time-reset')) {
+    if (event.predecessors.length > 0) {
       event.div.style.left = `${parseInt(event.div.style.left) / event.predecessors.length}px`;
     } else {
       event.div.style.top = '0px';
       event.div.style.left = `${freeX}px`;
-      console.log(freeX);
     }
+    if (event.hasAttribute('x')) event.div.style.left = `${event.getAttribute('x') - event.div.offsetWidth / 2}px`;
+    if (event.hasAttribute('y')) event.div.style.top = `${event.getAttribute('y')}px`;
     freeX = Math.max(freeX, parseInt(event.div.style.left) + event.div.offsetWidth + 50);
 
-    // Compute starting offset
+    // Compute starting X offset
     const PADDING = 50;
-    let x = parseInt(event.div.style.left) + event.div.offsetWidth / 2 - (event.successors.length - 1) * PADDING / 2;
+    let x = parseInt(event.div.style.left) + event.div.offsetWidth / 2;
     for (const successor of event.successors) {
-      x -= successor.div.offsetWidth / 2;
+      if (successor.hasAttribute('x')) continue;
+      x -= (successor.div.offsetWidth + PADDING) / 2;
     }
+    x += PADDING / 2;
 
     // Contribute to successors
     for (const successor of event.successors) {
-      const left = parseInt(successor.div.style.left) + x;
-      const top = Math.max(parseInt(successor.div.style.top), parseInt(event.div.style.top) + event.div.offsetHeight + 100);
-      successor.div.style.left = `${left}px`;
-      successor.div.style.top = `${top}px`;
-      x += successor.div.offsetWidth + PADDING;
+      if (!successor.hasAttribute('x'))  {
+        const left = parseInt(successor.div.style.left) + x;
+        successor.div.style.left = `${left}px`;
+        x += successor.div.offsetWidth + PADDING;
+      }
+      if (!successor.hasAttribute('y')) {
+        const top = Math.max(parseInt(successor.div.style.top), parseInt(event.div.style.top) + event.div.offsetHeight + 100);
+        successor.div.style.top = `${top}px`;
+      }
     }
   }
 
-  for (const line of lines) line.position();
+  for (const line of lines) {
+    line.position();
+    content.appendChild(line.element);
+  }
 }
