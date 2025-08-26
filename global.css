@@ -31,6 +31,9 @@ html, body {
 
 #content {
   width: max-content;
+}
+
+.timeline-split {
   display: flex;
   flex-direction: row;
   gap: 30px;
@@ -39,6 +42,7 @@ html, body {
 block {
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 100px;
 }
 
