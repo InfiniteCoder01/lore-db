@@ -31,6 +31,15 @@ html, body {
 
 #content {
   width: max-content;
+  display: flex;
+  flex-direction: row;
+  gap: 30px;
+}
+
+block {
+  display: flex;
+  flex-direction: column;
+  gap: 100px;
 }
 
 .box a {
@@ -38,8 +47,7 @@ html, body {
 }
 
 .box {
-  position: absolute;
-  width: max-content;
+  display: block;
   max-width: 300px;
 
   padding: 10px;
@@ -52,44 +60,29 @@ html, body {
   box-shadow: 0 4px 8px rgba(0,0,0,0.4);
 
   color: #ffffff;
-}
-
-.box::before {
-  content: "";
-
-  position: absolute;
-  left: 0;
-  top: 0;
-  width : 100%;
-  height: 100%;
-
-  border-radius: inherit;
-
   background-color: #505050;
-  background-size: 150px;
+  background-size: 150px !important;
   background-repeat: repeat;
+  background-blend-mode: darken;
   image-rendering: pixelated;
-  filter: brightness(0.7);
-  z-index: -1;
 }
 
-.jungle::before {
+.jungle {
   background-color: #3c5e2c;
-  background-image: url('assets/jungle.png');
+  background: #0000004c url('assets/jungle.png');
 }
 
-.bedrock::before {
+.bedrock {
   background-color: #353535;
-  background-image: url('assets/bedrock.png');
-  filter: brightness(0.5);
+  background: #00000080 url('assets/bedrock.png');
 }
 
-.stone_bricks::before {
+.stone_bricks {
   background-color: #353535;
-  background-image: url('assets/stone_bricks.png');
+  background: #0000004c url('assets/stone_bricks.png');
 }
 
-.mangroove::before {
+.mangroove {
   background-color: #5a482c;
-  background-image: url('assets/mangroove.png');
+  background: #0000004c url('assets/mangroove.png');
 }
